@@ -496,7 +496,7 @@ app.get('/api/admin/cohort-funnel', (req, res) => {
     // Full roster with booking status and nudge dates
     const studentRoster = db.prepare(`
       SELECT u.id as student_id, u.name, u.email, u.roll_number, u.headline, u.avatar_url,
-             e.id as enrollment_id, e.status, e.is_eligible, e.cleared_skills_count, e.total_skills_required,
+             e.id as enrollment_id, e.status, e.is_eligible, e.cleared_skills_count, t.total_skills_required,
              e.badge_credential_id, e.badge_awarded_at, e.badge_nullified_at, e.nullification_reason,
              e.last_nudged_at, e.retake_cooling_until,
              b.id as active_booking_id, s.slot_date, s.start_time, inv.name as interviewer_name
