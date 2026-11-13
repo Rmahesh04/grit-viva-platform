@@ -33,7 +33,7 @@ A production-grade, fullstack interview scheduling and credential lifecycle mana
 - **Backend & API:** Node.js 22, Express.js REST API
 - **Database:** Embedded ACID SQLite 3 (`node:sqlite`) with `schema.sql` foreign-key constraints and transaction isolation
 - **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons
-- **Documentation:** Engineering RFC memo (`docs/GRIT_INTERVIEW_SYSTEM_RFC.md`) and Loom recording guide (`docs/LOOM_RECORDING_SCRIPT.md`)
+- **Documentation:** Engineering RFC memo (`docs/GRIT_INTERVIEW_SYSTEM_RFC.md`)
 
 ---
 
@@ -93,8 +93,7 @@ Open your browser to: **`http://localhost:5000`** (or `http://localhost:5173`).
 │   ├── seed.js                               # Realistic NIAT GRIT seed data
 │   └── index.js                              # Express REST API routes & static server
 ├── docs/
-│   ├── GRIT_INTERVIEW_SYSTEM_RFC.md          # Official 2-Page Architectural RFC
-│   └── LOOM_RECORDING_SCRIPT.md              # 4-Minute Loom video recording script
+│   └── GRIT_INTERVIEW_SYSTEM_RFC.md          # Official 2-Page Architectural RFC
 ├── package.json
 └── README.md
 ```

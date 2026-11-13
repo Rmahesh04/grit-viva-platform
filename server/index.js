@@ -11,6 +11,23 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
+// Auto-seed if database is fresh or empty
+try {
+  const userCount = db.prepare(`SELECT count(*) as count FROM users`).get()?.count || 0;
+  if (userCount === 0) {
+    console.log('🌱 Database is empty. Seeding initial NIAT GRIT data...');
+    seedDatabase();
+  }
+} catch (err) {
+  try {
+    const { initializeSchema } = require('./db');
+    initializeSchema();
+    seedDatabase();
+  } catch (seedErr) {
+    console.error('Error during schema/seed initialization:', seedErr);
+  }
+}
+
 // In-memory active persona state for interactive demo switcher
 let activeSession = {
   role: 'STUDENT',
@@ -462,54 +479,59 @@ app.post('/api/interviews/evaluate', (req, res) => {
 // ==============================================================================
 
 app.get('/api/admin/cohort-funnel', (req, res) => {
-  // Aggregate counts
-  const stats = db.prepare(`
-    SELECT
-      COUNT(*) as total_students,
-      SUM(CASE WHEN is_eligible = 1 THEN 1 ELSE 0 END) as total_eligible,
-      SUM(CASE WHEN status = 'ELIGIBLE_PENDING_BOOKING' THEN 1 ELSE 0 END) as eligible_unbooked,
-      SUM(CASE WHEN status = 'SLOT_BOOKED' THEN 1 ELSE 0 END) as slot_booked,
-      SUM(CASE WHEN status = 'BADGE_AWARDED' THEN 1 ELSE 0 END) as badges_awarded,
-      SUM(CASE WHEN status = 'VIVA_FAILED_RETAKE' THEN 1 ELSE 0 END) as retake_required,
-      SUM(CASE WHEN status = 'BADGE_NULLIFIED_MALPRACTICE' THEN 1 ELSE 0 END) as badges_nullified
-    FROM student_track_enrollments
-  `).get();
+  try {
+    // Aggregate counts
+    const stats = db.prepare(`
+      SELECT
+        COUNT(*) as total_students,
+        SUM(CASE WHEN is_eligible = 1 THEN 1 ELSE 0 END) as total_eligible,
+        SUM(CASE WHEN status = 'ELIGIBLE_PENDING_BOOKING' THEN 1 ELSE 0 END) as eligible_unbooked,
+        SUM(CASE WHEN status = 'SLOT_BOOKED' THEN 1 ELSE 0 END) as slot_booked,
+        SUM(CASE WHEN status = 'BADGE_AWARDED' THEN 1 ELSE 0 END) as badges_awarded,
+        SUM(CASE WHEN status = 'VIVA_FAILED_RETAKE' THEN 1 ELSE 0 END) as retake_required,
+        SUM(CASE WHEN status = 'BADGE_NULLIFIED_MALPRACTICE' THEN 1 ELSE 0 END) as badges_nullified
+      FROM student_track_enrollments
+    `).get();
 
-  // Full roster with booking status and nudge dates
-  const studentRoster = db.prepare(`
-    SELECT u.id as student_id, u.name, u.email, u.roll_number, u.headline, u.avatar_url,
-           e.id as enrollment_id, e.status, e.is_eligible, e.cleared_skills_count, e.total_skills_required,
-           e.badge_credential_id, e.badge_awarded_at, e.badge_nullified_at, e.nullification_reason,
-           e.last_nudged_at, e.retake_cooling_until,
-           b.id as active_booking_id, s.slot_date, s.start_time, inv.name as interviewer_name
-    FROM student_track_enrollments e
-    JOIN users u ON u.id = e.student_id
-    JOIN tracks t ON t.id = e.track_id
-    LEFT JOIN interview_bookings b ON b.enrollment_id = e.id AND b.status = 'CONFIRMED'
-    LEFT JOIN interviewer_slots s ON s.id = b.slot_id
-    LEFT JOIN users inv ON inv.id = b.interviewer_id
-    ORDER BY
-      CASE
-        WHEN e.status = 'ELIGIBLE_PENDING_BOOKING' THEN 1
-        WHEN e.status = 'SLOT_BOOKED' THEN 2
-        WHEN e.status = 'VIVA_FAILED_RETAKE' THEN 3
-        WHEN e.status = 'BADGE_AWARDED' THEN 4
-        WHEN e.status = 'BADGE_NULLIFIED_MALPRACTICE' THEN 5
-        ELSE 6
-      END,
-      u.name ASC
-  `).all();
+    // Full roster with booking status and nudge dates
+    const studentRoster = db.prepare(`
+      SELECT u.id as student_id, u.name, u.email, u.roll_number, u.headline, u.avatar_url,
+             e.id as enrollment_id, e.status, e.is_eligible, e.cleared_skills_count, e.total_skills_required,
+             e.badge_credential_id, e.badge_awarded_at, e.badge_nullified_at, e.nullification_reason,
+             e.last_nudged_at, e.retake_cooling_until,
+             b.id as active_booking_id, s.slot_date, s.start_time, inv.name as interviewer_name
+      FROM student_track_enrollments e
+      JOIN users u ON u.id = e.student_id
+      JOIN tracks t ON t.id = e.track_id
+      LEFT JOIN interview_bookings b ON b.enrollment_id = e.id AND b.status = 'CONFIRMED'
+      LEFT JOIN interviewer_slots s ON s.id = b.slot_id
+      LEFT JOIN users inv ON inv.id = b.interviewer_id
+      ORDER BY
+        CASE
+          WHEN e.status = 'ELIGIBLE_PENDING_BOOKING' THEN 1
+          WHEN e.status = 'SLOT_BOOKED' THEN 2
+          WHEN e.status = 'VIVA_FAILED_RETAKE' THEN 3
+          WHEN e.status = 'BADGE_AWARDED' THEN 4
+          WHEN e.status = 'BADGE_NULLIFIED_MALPRACTICE' THEN 5
+          ELSE 6
+        END,
+        u.name ASC
+    `).all();
 
-  // Malpractice audit log
-  const auditLogs = db.prepare(`
-    SELECT m.*, u.name as student_name, u.roll_number as student_roll, adm.name as admin_name
-    FROM malpractice_audit_logs m
-    JOIN users u ON u.id = m.student_id
-    JOIN users adm ON adm.id = m.flagged_by_admin_id
-    ORDER BY m.flagged_at DESC
-  `).all();
+    // Malpractice audit log
+    const auditLogs = db.prepare(`
+      SELECT m.*, u.name as student_name, u.roll_number as student_roll, adm.name as admin_name
+      FROM malpractice_audit_logs m
+      JOIN users u ON u.id = m.student_id
+      JOIN users adm ON adm.id = m.flagged_by_admin_id
+      ORDER BY m.flagged_at DESC
+    `).all();
 
-  res.json({ stats, studentRoster, auditLogs });
+    res.json({ stats, studentRoster, auditLogs });
+  } catch (err) {
+    console.error('Error fetching cohort funnel:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin sends nudge to eligible student who hasn't booked
